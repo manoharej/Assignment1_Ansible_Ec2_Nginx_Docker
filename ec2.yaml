@@ -1,0 +1,76 @@
+- name: Create the EC2 instance
+  hosts: localhost
+  gather_facts: false
+  vars:
+    name: myinstance
+    ami: ami-0e1d30f2c40c4c701
+    keypair: Desktop_Practice
+    instance_type: t2.micro
+    subnet: subnet-0b995e47df85895f5
+    name: Nginx
+    vpc_id: vpc-0b686d2fef17ca089
+    project_name: web_SG
+    region: us-east-1
+    security_group: Devops_SG
+    #Other vars ommited for brevity
+  tasks:
+    - name: Create security group
+      ec2_group:
+        name: "{{ project_name }}"
+        description: "{{ project_name }}"
+        vpc_id: "{{ vpc_id }}"
+        region: "{{ region }}"
+        rules:
+          - proto: tcp  # ssh
+            ports:
+              - 22
+              - 80
+              - 8080
+            cidr_ip: 0.0.0.0/0
+        rules_egress:
+          - proto: all
+            cidr_ip: 0.0.0.0/0
+      register: test_firewall
+  - name: Launch Instance
+      ec2:
+        key_name: "{{ keypair }}"
+        group: "{{ project_name }}"
+        instance_type: "{{ instance_type }}"
+        image: "{{ ami }}"
+        user_data: "{{ lookup('file', 'user_data.sh') }}"
+        wait: true
+        region: "{{ region }}"
+        instance_tags:
+          Name: Nginx
+        vpc_subnet_id: "{{ subnet }}"
+        assign_public_ip: yes
+        count: 1
+      register: ec2
+
+   - name: Add new Instance to host group
+      add_host: name={{ item.private_ip }} groups={{ name }}
+      with_items: "{{ ec2.instances }}"
+
+- name: copy code
+    get_url:
+      url: https://raw.githubusercontent.com/raktim00/DevOpsHW/master/index.html
+      dest: "/opt/index.html"
+  - name: Wait for SSH to come up
+    wait_for: host={{ item.private_ip }} port=22 delay=100 timeout=320 state=started
+    with_items: "{{ ec2.instances }}"
+      #- name: Wait for SSH to come up
+      #local_action: wait_for
+      #            host={{ item.public_ip }}
+      #            port=22
+      #            state=started
+      # with_items: ec2.instances
+
+  - name: Add IP to ec2_hosts group
+    add_host: hostname={{ item.public_ip }} groups=ec2_hosts
+    with_items: ec2.instances
+
+  - name: Configure instance(s)
+    hosts: localhost
+    tasks:
+      - name: Example task
+        command: touch a_file
