@@ -1,0 +1,45 @@
+- name: Create security group
+  ec2_group:
+    name: "{{ project_name }}"
+    description: "{{ project_name }}"
+    vpc_id: "{{ vpc_id }}"
+    region: "{{ region }}"
+    rules:
+      - proto: tcp  # ssh
+        ports:
+          - 22
+          - 80
+          - 8080
+          - 49160
+        cidr_ip: 0.0.0.0/0
+    rules_egress:
+      - proto: all
+        cidr_ip: 0.0.0.0/0
+  register: test_firewall
+
+- name: Launch Instance
+  ec2:
+    key_name: "{{ keypair }}"
+    group: "{{ project_name }}"
+    instance_type: "{{ instance_type }}"
+    image: "{{ ami }}"
+    user_data: "{{ lookup('file', 'user_data.sh') }}"
+    wait: true
+    region: "{{ region }}"
+    instance_tags:
+        Name: Nginx
+    vpc_subnet_id: "{{ subnet }}"
+    assign_public_ip: yes
+    count: 1
+  register: ec2
+
+- name: Add new Instance to host group
+  add_host: name={{ item.private_ip }} groups={{ name }}
+  with_items: "{{ ec2.instances }}"
+
+- name: copy nginx.conf  file
+  become: yes
+  template:
+    src:  nginx.j2
+    dest: /etc/nginx/nginx.conf
+  notify: restart service
