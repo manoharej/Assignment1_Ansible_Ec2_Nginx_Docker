@@ -1,0 +1,12 @@
+---
+# vars file for test-role
+name: myinstance
+ami: ami-0e1d30f2c40c4c701
+keypair: Desktop_Practice
+instance_type: t2.micro
+subnet: subnet-0b995e47df85895f5
+name: Nginx
+vpc_id: vpc-0b686d2fef17ca089
+project_name: web_SG
+region: us-east-1
+security_group: Devops_SG
